@@ -1,0 +1,16 @@
+export type Credential = 'bearer' | 'admin' | 'none'
+export type Scope = { dataset_id: number; version_id: string; language: string; scheme_id: string }
+export type Kind = 'governance-value' | 'governance-anomaly' | 'governance-risk'
+export type TaskStatus = 'pending' | 'running' | 'succeeded' | 'failed'
+export type Task = { id?: string; task_id?: string; name?: string; input?: Scope; status: TaskStatus; created_at: string; result_id: string | null; error_message: string | null; coverage?: number }
+export type TaskCreate = { kind: Kind; name: string; input: Scope }
+export type Page<T> = { items: T[]; total: number; page: number; page_size: number; total_pages: number }
+export type Token = { id: string; label: string; created_at: string; expires_at: string; enabled: boolean }
+export type BusinessUser = { id: number; username: string; display_name: string; role: string; enabled: boolean }
+export type Model = { model_id: string; upstream_model_id: string; name: string; description: string | null; base_url: string; created_at: string; updated_at: string }
+export type ModelInput = { upstream_model_id: string; name: string; description?: string | null; base_url: string; api_key: string }
+export type BusinessDatabase = { host: string; port: number; database: string; username: string; password_configured: boolean }
+export type BusinessDatabaseInput = Omit<BusinessDatabase, 'password_configured'> & { password: string }
+export type Call = { id: string; model_id: string; input: string; output: Record<string, unknown> | null; response_type: string; status: string; error_code: string | null; created_at: string; token_id?: string; token_label?: string }
+export type ResultSummary = { id: string; task_id: string; scope: Scope; dataset_name: string; finished_at: string; [key: string]: unknown }
+export type ResultSample = { id: string; text: string; [key: string]: unknown }
