@@ -1,4 +1,4 @@
-export type Credential = 'bearer' | 'admin' | 'none'
+export type Credential = 'bearer' | 'admin' | 'both' | 'none'
 export type Scope = { dataset_id: number; version_id: string; language: string; scheme_id: string }
 export type Kind = 'governance-value' | 'governance-anomaly' | 'governance-risk'
 export type TaskStatus = 'pending' | 'running' | 'succeeded' | 'failed'
@@ -14,3 +14,31 @@ export type BusinessDatabaseInput = Omit<BusinessDatabase, 'password_configured'
 export type Call = { id: string; model_id: string; input: string; output: Record<string, unknown> | null; response_type: string; status: string; error_code: string | null; created_at: string; token_id?: string; token_label?: string }
 export type ResultSummary = { id: string; task_id: string; scope: Scope; dataset_name: string; finished_at: string; [key: string]: unknown }
 export type ResultSample = { id: string; text: string; [key: string]: unknown }
+export type TrainingStatus = TaskStatus | 'canceling' | 'canceled'
+export type TensorSpec = { dtype: string; shape: (number | null)[] }
+export type TensorContract = { inputs: Record<string, TensorSpec>; targets: TensorSpec | Record<string, TensorSpec>; outputs: TensorSpec | Record<string, TensorSpec> }
+export type TrainingInput = {
+  name: string; dataset_id: number; version_id: string; python_source: string; contract: TensorContract
+  model_id?: string | null; base_version?: string | null; target_version?: string | null; method?: string
+  epochs?: number; batch_size?: number; learning_rate?: number; seed?: number; device?: string
+  optimizer?: string; optimizer_params?: Record<string, unknown>; scheduler?: string | null; scheduler_params?: Record<string, unknown>
+  validation_ratio?: number; task_type?: string; loss?: string; metrics?: string; average?: string; threshold?: number; pos_label?: number
+  model_params?: Record<string, unknown>; data_params?: Record<string, unknown>; loss_params?: Record<string, unknown>; metric_params?: Record<string, unknown>
+}
+export type TrainingDefaults = { defaults: Partial<TrainingInput>; supported: Record<string, string[]>; example_record: Record<string, unknown>; example_request: TrainingInput; custom_example_request: TrainingInput; trusted_code_only: boolean }
+export type TrainingTask = Omit<TrainingInput, 'python_source'> & { id: string; status: TrainingStatus; progress: number; epoch: number; step: number; elapsed: string; created_at: string; error_message: string | null; latest_phase: string | null; latest_metrics: Record<string, number | null>; config: Omit<TrainingInput, 'python_source'>; runtime: Record<string, unknown> }
+export type TrainingMetric = { id: number; epoch: number; step: number; phase: string; metrics: Record<string, number | null>; created_at: string }
+export type TrainingMetrics = { items: TrainingMetric[]; next_after_id: number; has_more: boolean }
+export type TrainingArtifact = { id: string; filename: string; kind: string; epoch: number | null; loss: number | null; size: number; sha256: string }
+export type AnalysisKind = 'scenario' | 'model_governance' | 'audit'
+export type ScenarioCode = 'public_opinion' | 'hot_events' | 'cross_cultural' | 'ethnic_governance' | 'smart_government' | 'cyber_security'
+export type Material = { id: string; content: string; title?: string | null; time?: string | null }
+export type ScenarioInput = { model_id: string; scenario_code: ScenarioCode; content: string; language: string; materials: Material[]; target_language?: string }
+export type GovernanceInput = { model_id: string; prompt: string; temperature?: number; max_tokens?: number }
+export type ObservedStep = { id: string; label: string; detail: string; evidence_refs?: string[]; rule_refs?: string[] }
+export type AuditInput = { model_id: string; audit_type: 'reasoning' | 'full_chain'; subject: { id: string; type: string; version: string }; steps: ObservedStep[]; evidence: Material[]; rules: { id: string; text: string }[] }
+export type AnalysisOptions = { analysis_types: AnalysisKind[]; audit_types: string[]; scenarios: { code: ScenarioCode; name: string; input_requirements: string; supported_analysis_types: string[] }[] }
+export type AnalysisRecord = { id: string; kind: AnalysisKind; scenario_code: ScenarioCode | null; model_id: string; input: Record<string, unknown>; status: 'running' | 'succeeded' | 'failed'; created_at: string; finished_at: string | null; result: Record<string, unknown> | null; original_output: unknown; error_message: string | null; error_code: string | null; calls: Record<string, unknown>[]; [key: string]: unknown }
+export type GovernanceOptions = { schemes: { id: string; name: string; levels?: string[] }[]; types?: string[]; review_statuses?: string[] }
+export type OverviewCard = { label: string; value: number; unit?: string }
+export type GovernanceOverview = { cards: OverviewCard[]; definitions?: string[] }

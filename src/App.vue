@@ -16,6 +16,11 @@ const nav = [
   { path: '/governance-config', label: '治理任务配置', group: '系统管理' },
   { path: '/invoke', label: '通用模型调用', group: '模型调用' },
   { path: '/calls', label: '调用记录', group: '模型调用' },
+  { path: '/training', label: '模型训练', group: '训练与分析' },
+  { path: '/analysis/scenario', label: '场景分析', group: '训练与分析' },
+  { path: '/analysis/governance', label: '模型治理', group: '训练与分析' },
+  { path: '/analysis/audit', label: '推理与全链路审计', group: '训练与分析' },
+  { path: '/analysis/records', label: '分析记录', group: '训练与分析' },
   { path: '/governance/value', label: '价值分析', group: '数据治理' },
   { path: '/governance/anomaly', label: '异常治理', group: '数据治理' },
   { path: '/governance/risk', label: '风险分级', group: '数据治理' },
@@ -30,7 +35,7 @@ onMounted(checkHealth)
   <div class="shell">
     <aside class="sidebar">
       <div class="brand"><span class="brand-mark">CS</span><div><strong>内容安全管理端</strong><small>Content Security LLM</small></div></div>
-      <template v-for="group in ['系统管理', '模型调用', '数据治理']" :key="group">
+      <template v-for="group in ['系统管理', '模型调用', '训练与分析', '数据治理']" :key="group">
         <p class="nav-group">{{ group }}</p>
         <router-link v-for="item in nav.filter(entry => entry.group === group)" :key="item.path" :to="item.path" class="nav-link" :class="{ active: route.path === item.path }">{{ item.label }}</router-link>
       </template>

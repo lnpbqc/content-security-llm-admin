@@ -9,6 +9,8 @@ export default createRouter({
     { path: '/governance-config', component: () => import('@/views/GovernanceConfigView.vue') },
     { path: '/invoke', component: () => import('@/views/InvokeView.vue') },
     { path: '/calls', component: () => import('@/views/CallsView.vue') },
+    { path: '/training', component: () => import('@/views/TrainingView.vue') },
+    { path: '/analysis/:area(scenario|governance|audit|records)', component: () => import('@/views/AnalysisView.vue') },
     { path: '/governance/:area', component: () => import('@/views/GovernanceWorkspace.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/tokens' },
   ],
