@@ -7,15 +7,23 @@ import { ApiError, errorMessage } from '@/api/client'
 import ScopeFields from '@/components/ScopeFields.vue'
 import TaskBadge from '@/components/TaskBadge.vue'
 import { session } from '@/stores/session'
-import type { Kind, Page, ResultSample, ResultSummary, Scope, Task, TaskCreate } from '@/types/api'
+import type { GovernanceOverview, Kind, Page, ResultSample, ResultSummary, Scope, Task, TaskCreate } from '@/types/api'
 import { required, taskPayload, validScope } from '@/utils/forms'
 import { createTaskPoller, shouldPoll } from '@/utils/polling'
+import { saveFile } from '@/utils/download'
 
 const route = useRoute()
 const area = computed(() => route.params.area as string)
 const kind = computed<Kind>(() => area.value === 'anomaly' ? 'governance-anomaly' : area.value === 'risk' ? 'governance-risk' : 'governance-value')
 const label = computed(() => ({ value: '价值分析', anomaly: '异常治理', risk: '风险分级' })[area.value] || '价值分析')
-const schemes = computed(() => area.value === 'value' ? ['general-v1', 'general-v2'] : area.value === 'anomaly' ? ['anomaly-basic-v1'] : ['risk-v1'])
+const availableSchemes = ref<string[]>([])
+const schemes = computed(() => availableSchemes.value.length ? availableSchemes.value : area.value === 'value' ? ['general-v1', 'general-v2'] : area.value === 'anomaly' ? ['anomaly-basic-v1'] : ['risk-v1'])
+const overview = ref<GovernanceOverview | null>(null)
+const optionsError = ref('')
+const exporting = ref(false)
+const knowledge = ref<Record<string, unknown>[] | null>(null)
+const knowledgeKeyword = ref('')
+let optionsRevision = 0
 const tab = ref('tasks')
 const scope = ref<Scope>({ dataset_id: 0, version_id: '', language: 'zh', scheme_id: 'general-v1' })
 const name = ref('')
@@ -59,10 +67,30 @@ const poller = createTaskPoller(async () => {
 function persistRecent() { sessionStorage.setItem('cs-recent-tasks', JSON.stringify({ ids: recentIds.value, original: original.value })) }
 function restoreRecent() { try { const stored = JSON.parse(sessionStorage.getItem('cs-recent-tasks') || '{}') as { ids?: string[]; original?: Record<string, TaskCreate> }; recentIds.value = stored.ids || []; original.value = stored.original || {} } catch { recentIds.value = []; original.value = {} } }
 function reset() { poller.stop(); scope.value = { dataset_id: 0, version_id: '', language: 'zh', scheme_id: schemes.value[0] || '' }; name.value = ''; activeTask.value = null; manualId.value = ''; taskRows.value = []; taskPage.value = 1; taskTotal.value = 0; summary.value = null; histories.value = []; resultId.value = ''; samples.value = null; sampleDetail.value = null; error.value = ''; restoreRecent() }
-watch(area, reset, { immediate: true })
+watch(area, () => { availableSchemes.value = []; overview.value = null; knowledge.value = null; reset(); void loadOptions() }, { immediate: true })
 watch(scope, () => { summary.value = null; histories.value = []; samples.value = null; sampleDetail.value = null; taskRows.value = [] }, { deep: true })
 watch(session.bearerRevision, () => { poller.stop(); activeTask.value = null; taskRows.value = []; summary.value = null; histories.value = []; samples.value = null; recentIds.value = []; original.value = {}; sessionStorage.removeItem('cs-recent-tasks'); error.value = '访问令牌已更换。原任务可能因令牌隔离而无法查询。' })
-onBeforeUnmount(() => poller.stop())
+watch(session.bearerRevision, () => { overview.value = null; knowledge.value = null; sampleDetail.value = null; void loadOptions() })
+watch(sampleDetail, () => { knowledge.value = null; knowledgeKeyword.value = '' })
+onBeforeUnmount(() => { optionsRevision++; poller.stop() })
+
+async function loadOptions() {
+  const current = ++optionsRevision; optionsError.value = ''
+  const results = await Promise.allSettled([api.governanceOptions(kind.value), api.governanceOverview(kind.value)])
+  if (current !== optionsRevision) return
+  if (results[0].status === 'fulfilled') { availableSchemes.value = results[0].value.schemes.map(item => item.id); if (!schemes.value.includes(scope.value.scheme_id)) scope.value.scheme_id = schemes.value[0] || '' } else optionsError.value = errorMessage(results[0].reason)
+  if (results[1].status === 'fulfilled') overview.value = results[1].value; else optionsError.value = errorMessage(results[1].reason)
+}
+async function exportRisk() {
+  if (kind.value !== 'governance-risk' || !summary.value) return
+  const id = summary.value.id; const current = optionsRevision; exporting.value = true
+  try { const data = await api.exportRisk(id, { keyword: keyword.value, level: level.value, status: sampleStatus.value }); if (current === optionsRevision) saveFile(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `risk-${id}.json`) } catch (e) { if (current === optionsRevision) error.value = errorMessage(e) } finally { exporting.value = false }
+}
+async function searchKnowledge() {
+  if (!summary.value || !sampleDetail.value) return
+  const id = sampleDetail.value.id; const result = summary.value.id; const current = optionsRevision
+  try { const data = await api.riskKnowledge(result, id, knowledgeKeyword.value); if (current === optionsRevision && sampleDetail.value?.id === id && summary.value?.id === result) knowledge.value = data } catch (e) { if (current === optionsRevision) error.value = errorMessage(e) }
+}
 
 async function create() {
   if (!required(name.value) || !validScope(scope.value)) { error.value = '请填写任务名称与完整范围；数据集 ID 至少为 1'; return }
@@ -121,7 +149,8 @@ function applyFilters() { samplePage.value = 1; loadSamples() }
 </script>
 <template>
   <div class="page-header"><div><h1>{{ label }}</h1><p class="muted">数据集 ID 和当前版本由操作者填写；任务按创建时的 Bearer 令牌隔离。</p></div></div>
-  <div class="section"><h2>数据集与方案范围</h2><ScopeFields v-model="scope" :schemes="schemes" /><p class="field-hint">此服务没有数据集目录或选项接口。语种保留在查询范围中，目前不筛选业务库记录。</p></div>
+  <div class="section"><div class="section-header"><h2>当前令牌概览</h2><el-button @click="loadOptions">刷新概览与方案</el-button></div><div v-if="overview" class="metric-row"><div v-for="card in overview.cards" :key="card.label" class="metric"><strong>{{ card.value }}{{ card.unit || '' }}</strong><span>{{ card.label }}</span></div></div><p v-for="definition in overview?.definitions || []" :key="definition" class="field-hint">{{ definition }}</p><p v-if="optionsError" class="error">{{ optionsError }}</p></div>
+  <div class="section"><h2>数据集与方案范围</h2><ScopeFields v-model="scope" :schemes="schemes" /><p class="field-hint">方案来自服务端；数据集 ID 和版本须从业务系统取得。语种保留在查询范围中，目前不筛选业务库记录。</p></div>
   <el-tabs v-model="tab">
     <el-tab-pane label="任务" name="tasks">
       <div class="section"><h2>新建验证任务</h2><p class="muted">只提交任务类型、名称和上方四元组范围。模型和样本由后端读取。</p><div class="field" style="margin:16px 0;max-width:450px"><label>任务名称</label><el-input v-model="name" placeholder="输入本次任务名称" /></div><el-button type="primary" :loading="busy" @click="create">创建任务</el-button><p class="field-hint">创建后立即显示等待中；worker 为独立进程，本页面不能启动或查看其进程状态。</p></div>
@@ -143,6 +172,7 @@ function applyFilters() { samplePage.value = 1; loadSamples() }
         <el-table :data="samples?.items || []" empty-text="暂无匹配样本" class="data-table"><el-table-column prop="id" label="样本 ID" min-width="120" /><el-table-column prop="text" :label="kind === 'governance-risk' ? '已遮蔽正文' : '正文'" min-width="300" show-overflow-tooltip /><el-table-column v-if="kind === 'governance-value'" prop="score" label="分数" width="90" /><el-table-column v-if="kind === 'governance-value'" prop="tier" label="档位" width="110" /><el-table-column v-if="kind === 'governance-anomaly'" prop="primary_type" label="主要异常" min-width="110" /><el-table-column v-if="kind === 'governance-risk'" prop="maximum_suggested_level" label="风险等级" width="110" /><el-table-column v-if="kind !== 'governance-value'" prop="status" label="状态" width="110" /><el-table-column label="详情" width="90"><template #default="{ row }"><el-button link type="primary" @click="kind === 'governance-value' ? sampleDetail = row : loadSample(row.id)">查看</el-button></template></el-table-column></el-table><el-pagination style="margin-top:16px;justify-content:flex-end" background layout="prev, pager, next, total" :current-page="samplePage" :page-size="pageSize" :total="samples?.total || 0" @current-change="(value: number) => { samplePage = value; loadSamples() }" /></div>
     </el-tab-pane>
   </el-tabs>
+  <div v-if="kind === 'governance-risk' && summary && tab === 'results'" class="section"><h2>导出风险快照</h2><p class="field-hint">导出当前关键词、风险等级和状态匹配的全部样本，不受分页限制。</p><el-button :loading="exporting" @click="exportRisk">导出匹配样本 JSON</el-button></div>
   <p v-if="error" class="error">{{ error }}</p>
-  <el-drawer :model-value="!!sampleDetail" title="只读样本详情" size="min(640px, 94vw)" @close="sampleDetail = null"><template v-if="sampleDetail"><dl class="detail-list"><dt>样本 ID</dt><dd>{{ sampleDetail.id }}</dd><dt>{{ kind === 'governance-risk' ? '已遮蔽正文' : '原文' }}</dt><dd><pre class="pre">{{ sampleDetail.text }}</pre></dd></dl><h3 style="margin-top:20px">发现与证据</h3><pre class="pre">{{ JSON.stringify(sampleDetail.findings || sampleDetail.dimensions || [], null, 2) }}</pre><template v-if="kind === 'governance-anomaly'"><h3>候选字段变更（只读草稿）</h3><pre class="pre">{{ JSON.stringify(sampleDetail.candidates || [], null, 2) }}</pre></template><template v-if="kind === 'governance-risk'"><h3>证据</h3><pre class="pre">{{ JSON.stringify(sampleDetail.evidence || [], null, 2) }}</pre></template><p v-if="sampleDetail.unavailable_reason || sampleDetail.unassessable_reason" class="muted">{{ sampleDetail.unavailable_reason || sampleDetail.unassessable_reason }}</p></template></el-drawer>
+  <el-drawer :model-value="!!sampleDetail" title="只读样本详情" size="min(640px, 94vw)" @close="sampleDetail = null"><template v-if="sampleDetail"><dl class="detail-list"><dt>样本 ID</dt><dd>{{ sampleDetail.id }}</dd><dt>{{ kind === 'governance-risk' ? '已遮蔽正文' : '原文' }}</dt><dd><pre class="pre">{{ sampleDetail.text }}</pre></dd></dl><h3 style="margin-top:20px">发现与证据</h3><pre class="pre">{{ JSON.stringify(sampleDetail.findings || sampleDetail.dimensions || [], null, 2) }}</pre><template v-if="kind === 'governance-anomaly'"><h3>候选字段变更（只读草稿）</h3><pre class="pre">{{ JSON.stringify(sampleDetail.candidates || [], null, 2) }}</pre></template><template v-if="kind === 'governance-risk'"><h3>证据</h3><pre class="pre">{{ JSON.stringify(sampleDetail.evidence || [], null, 2) }}</pre><h3>快照规则检索</h3><div class="toolbar"><el-input v-model="knowledgeKeyword" placeholder="规则关键词" clearable /><el-button @click="searchKnowledge">检索规则</el-button></div><pre v-if="knowledge" class="pre">{{ JSON.stringify(knowledge, null, 2) }}</pre></template><p v-if="sampleDetail.unavailable_reason || sampleDetail.unassessable_reason" class="muted">{{ sampleDetail.unavailable_reason || sampleDetail.unassessable_reason }}</p></template></el-drawer>
 </template>

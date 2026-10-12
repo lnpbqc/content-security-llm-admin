@@ -17,6 +17,7 @@ const nav = [
   { path: '/invoke', label: '通用模型调用', group: '模型调用' },
   { path: '/calls', label: '调用记录', group: '模型调用' },
   { path: '/training', label: '模型训练', group: '训练与分析' },
+  { path: '/neural-trace', label: '神经因果溯源', group: '训练与分析' },
   { path: '/analysis/scenario', label: '场景分析', group: '训练与分析' },
   { path: '/analysis/governance', label: '模型治理', group: '训练与分析' },
   { path: '/analysis/audit', label: '推理与全链路审计', group: '训练与分析' },

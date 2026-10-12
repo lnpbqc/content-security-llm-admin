@@ -11,6 +11,7 @@ export type Model = { model_id: string; upstream_model_id: string; name: string;
 export type ModelInput = { upstream_model_id: string; name: string; description?: string | null; base_url: string; api_key: string }
 export type BusinessDatabase = { host: string; port: number; database: string; username: string; password_configured: boolean }
 export type BusinessDatabaseInput = Omit<BusinessDatabase, 'password_configured'> & { password: string }
+export type BusinessDatabaseTestResult = { connected: true; checks: ('connection' | 'query' | 'datasets' | 'dataset_records')[]; elapsed_ms: number; checked_at: string }
 export type Call = { id: string; model_id: string; input: string; output: Record<string, unknown> | null; response_type: string; status: string; error_code: string | null; created_at: string; token_id?: string; token_label?: string }
 export type ResultSummary = { id: string; task_id: string; scope: Scope; dataset_name: string; finished_at: string; [key: string]: unknown }
 export type ResultSample = { id: string; text: string; [key: string]: unknown }
@@ -26,10 +27,17 @@ export type TrainingInput = {
   model_params?: Record<string, unknown>; data_params?: Record<string, unknown>; loss_params?: Record<string, unknown>; metric_params?: Record<string, unknown>
 }
 export type TrainingDefaults = { defaults: Partial<TrainingInput>; supported: Record<string, string[]>; example_record: Record<string, unknown>; example_request: TrainingInput; custom_example_request: TrainingInput; trusted_code_only: boolean }
-export type TrainingTask = Omit<TrainingInput, 'python_source'> & { id: string; status: TrainingStatus; progress: number; epoch: number; step: number; elapsed: string; created_at: string; error_message: string | null; latest_phase: string | null; latest_metrics: Record<string, number | null>; config: Omit<TrainingInput, 'python_source'>; runtime: Record<string, unknown> }
-export type TrainingMetric = { id: number; epoch: number; step: number; phase: string; metrics: Record<string, number | null>; created_at: string }
+export type ScriptTrainingInput = { name: string; script_id: string; inputs: Record<string, unknown>; parameters: Record<string, unknown> }
+export type TrainingScript = { id: string; name: string; description: string; inputs_schema: Record<string, unknown>; parameters_schema: Record<string, unknown> }
+export type TrainingTask = Partial<Omit<TrainingInput, 'python_source' | 'name'>> & { id: string; name: string; runner?: 'script'; script_id?: string; inputs?: Record<string, unknown>; parameters?: Record<string, unknown>; status: TrainingStatus; progress: number | null; epoch: number | null; step: number | null; elapsed?: string; elapsed_seconds: number; created_at: string; error_message: string | null; latest_phase: string | null; latest_metrics: Record<string, number | null>; config: Record<string, unknown>; runtime: Record<string, unknown> }
+export type TrainingMetric = { id: number; epoch?: number | null; step?: number | null; phase?: string | null; metrics: Record<string, number | null>; created_at: string }
 export type TrainingMetrics = { items: TrainingMetric[]; next_after_id: number; has_more: boolean }
+export type TrainingLogs = { text: string; next_after_offset: number; has_more: boolean }
 export type TrainingArtifact = { id: string; filename: string; kind: string; epoch: number | null; loss: number | null; size: number; sha256: string }
+export type TraceCase = { case_id: string; query: string; gold_answer: string; poison_target_answer: string }
+export type TraceTask = { task_id: string; case_id: string; status: TaskStatus; stage: string; error_message: string | null; created_at: string; updated_at: string; started_at: string | null; finished_at: string | null }
+export type TraceSection = { summary: Record<string, unknown>; rows: Record<string, unknown>[] }
+export type TraceResult = { schema_version: 'neural-trace-result-v1'; task_id: string; case: TraceCase; model: Record<string, unknown>; input_hashes: Record<string, string>; document_trace: TraceSection; layer_scan: TraceSection; activation_difference: TraceSection; component_scan: TraceSection; baseline_generation: Record<string, unknown>; scoring_patch_scope: 'candidate_prediction_span'; generation_patch_scope: 'generation_prompt_last_token' }
 export type AnalysisKind = 'scenario' | 'model_governance' | 'audit'
 export type ScenarioCode = 'public_opinion' | 'hot_events' | 'cross_cultural' | 'ethnic_governance' | 'smart_government' | 'cyber_security'
 export type Material = { id: string; content: string; title?: string | null; time?: string | null }

@@ -41,6 +41,7 @@ const error = ref('')
 const historyError = ref('')
 let revision = 0
 let historyRevision = 0
+let recordRevision = 0
 const kindLabels = { scenario: '场景分析', model_governance: '模型治理', audit: '审计' }
 const statuses = { running: '分析中', succeeded: '成功', failed: '失败' }
 const instructions = computed(() => options.value?.scenarios.find(item => item.code === scenario.value)?.input_requirements)
@@ -63,9 +64,9 @@ async function loadHistory() {
 function applyFilters() { page.value = 1; void loadHistory() }
 async function queryRecord(id = manualId.value) {
   if (!id.trim()) { historyError.value = '请输入分析记录 ID'; return }
-  const current = revision; historyError.value = ''; record.value = null
-  try { const value = await api.analysisRecord(id.trim()); if (current === revision) { record.value = value; manualId.value = value.id } }
-  catch (e) { if (current === revision) historyError.value = errorMessage(e) }
+  const current = revision; const query = ++recordRevision; historyError.value = ''; record.value = null
+  try { const value = await api.analysisRecord(id.trim()); if (current === revision && query === recordRevision) { record.value = value; manualId.value = value.id } }
+  catch (e) { if (current === revision && query === recordRevision) historyError.value = errorMessage(e) }
 }
 async function submit() {
   const current = revision; error.value = ''; record.value = null
@@ -103,6 +104,7 @@ onBeforeUnmount(() => { revision++; historyRevision++ })
 </script>
 <template>
   <div class="page-header"><div><h1>{{ title }}</h1><p class="muted">分析与记录按当前访问令牌隔离，结果保留提交材料、引用和关联调用。</p></div><el-button @click="loadOptions(); loadHistory()">刷新</el-button></div>
+  <p v-if="area === 'records' && error" class="error">{{ error }}</p>
   <div v-if="area !== 'records'" class="section"><h2>提交分析</h2><div class="form-grid">
     <div class="field full"><label>本地模型</label><el-select v-model="modelId" placeholder="选择模型"><el-option v-for="model in models" :key="model.model_id" :label="`${model.name}（${model.model_id}）`" :value="model.model_id" /></el-select></div>
     <template v-if="area === 'scenario'">

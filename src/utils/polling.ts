@@ -5,17 +5,19 @@ export function shouldPoll(status: TaskStatus): boolean { return status === 'pen
 export function createTaskPoller(load: () => Promise<TaskStatus>, interval = 3000) {
   let timer: ReturnType<typeof setTimeout> | undefined
   let active = false
-  const tick = async () => {
-    if (!active) return
+  let revision = 0
+  const tick = async (current: number) => {
+    if (!active || current !== revision) return
     try {
       const status = await load()
-      if (active && shouldPoll(status)) timer = setTimeout(tick, interval)
+      if (current !== revision) return
+      if (active && shouldPoll(status)) timer = setTimeout(() => tick(current), interval)
       else active = false
-    } catch { active = false }
+    } catch { if (current === revision) active = false }
   }
   return {
-    start() { if (active) return; active = true; timer = setTimeout(tick, interval) },
-    stop() { active = false; if (timer) clearTimeout(timer) },
+    start() { if (active) return; active = true; const current = ++revision; timer = setTimeout(() => tick(current), interval) },
+    stop() { revision++; active = false; if (timer) clearTimeout(timer) },
     get active() { return active },
   }
 }

@@ -1,6 +1,7 @@
 import { ApiError, request, requestFile } from './client'
 import type { AnalysisKind, AnalysisOptions, AnalysisRecord, AuditInput, GovernanceInput, GovernanceOptions, GovernanceOverview, OverviewCard, ScenarioInput, TrainingArtifact, TrainingDefaults, TrainingInput, TrainingMetrics, TrainingTask } from '@/types/api'
-import type { BusinessDatabase, BusinessDatabaseInput, BusinessUser, Call, Kind, Model, ModelInput, Page, ResultSample, ResultSummary, Scope, Task, TaskCreate, Token } from '@/types/api'
+import type { BusinessDatabase, BusinessDatabaseInput, BusinessDatabaseTestResult, BusinessUser, Call, Kind, Model, ModelInput, Page, ResultSample, ResultSummary, Scope, Task, TaskCreate, Token } from '@/types/api'
+import type { ScriptTrainingInput, TraceCase, TraceResult, TraceTask, TrainingLogs, TrainingScript } from '@/types/api'
 
 const q = (params: Record<string, string | number | undefined>) => ({ params })
 const scopeQuery = (scope: Scope) => ({ ...scope })
@@ -19,14 +20,14 @@ export const api = {
   allTokenStatus: (enabled: boolean) => request<{ enabled: boolean; updated_count: number }>('/api/auth/tokens/status', { method: 'PATCH', body: { enabled }, credential: 'admin' }),
   models: () => request<Model[]>('/api/models'),
   model: (id: string) => request<Model>(`/api/models/${encodeURIComponent(id)}`),
-  createModel: (body: ModelInput) => request<Model>('/api/models', { method: 'POST', body }),
-  updateModel: (id: string, body: Partial<ModelInput>) => request<Model>(`/api/models/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
-  deleteModel: (id: string) => request<void>(`/api/models/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  createModel: (body: ModelInput) => request<Model>('/api/models', { method: 'POST', body, credential: 'both' }),
+  updateModel: (id: string, body: Partial<ModelInput>) => request<Model>(`/api/models/${encodeURIComponent(id)}`, { method: 'PATCH', body, credential: 'both' }),
+  deleteModel: (id: string) => request<void>(`/api/models/${encodeURIComponent(id)}`, { method: 'DELETE', credential: 'both' }),
   bindings: () => request<Partial<Record<Kind, string>>>('/api/v1/admin/governance/models', { credential: 'admin' }),
   setBinding: (kind: Kind, model_id: string) => request(`/api/v1/admin/governance/models/${kind}`, { method: 'PUT', body: { model_id }, credential: 'admin' }),
   businessDatabase: () => request<BusinessDatabase | null>('/api/v1/admin/governance/business-database', { credential: 'admin' }),
   setBusinessDatabase: (body: BusinessDatabaseInput) => request<BusinessDatabase>('/api/v1/admin/governance/business-database', { method: 'PUT', body, credential: 'admin' }),
-  testBusinessDatabase: () => request<Record<string, unknown>>('/api/v1/admin/governance/business-database/test', { method: 'POST', credential: 'admin' }),
+  testBusinessDatabase: () => request<BusinessDatabaseTestResult>('/api/v1/admin/governance/business-database/test', { method: 'POST', credential: 'admin' }),
   responseTypes: () => request<string[]>('/api/llm/response-types'),
   invoke: (body: { model_id: string; input: string; response_type: string }) => request<{ model_id: string; response_type: string; result: Record<string, unknown> }>('/api/llm/invoke', { method: 'POST', body }),
   calls: (limit: number, offset: number) => request<Call[]>('/api/calls', q({ limit, offset })),
@@ -44,10 +45,13 @@ export const api = {
   exportRisk: (id: string, body: { keyword: string; level: string; status: string }) => request<ResultSample[]>(`${root}/risk-results/${encodeURIComponent(id)}/export`, { method: 'POST', body }),
   riskKnowledge: (result_id: string, sample_id: string, keyword: string) => request<Record<string, unknown>[]>('/api/v1/risk-knowledge', q({ result_id, sample_id, keyword })),
   trainingDefaults: () => request<TrainingDefaults>('/api/v1/training/defaults'),
+  trainingScripts: () => request<TrainingScript[]>('/api/v1/training/scripts'),
+  createScriptTraining: (body: ScriptTrainingInput) => request<TrainingTask>('/api/v1/training/script-tasks', { method: 'POST', body, credential: 'both' }),
   createTraining: (body: TrainingInput) => request<TrainingTask>('/api/v1/training/tasks', { method: 'POST', body, credential: 'both' }),
   trainingTasks: (page: number, page_size: number) => request<Page<TrainingTask>>('/api/v1/training/tasks', q({ page, page_size })),
   trainingTask: (id: string) => request<TrainingTask>(`/api/v1/training/tasks/${encodeURIComponent(id)}`),
   trainingMetrics: (id: string, after_id: number) => request<TrainingMetrics>(`/api/v1/training/tasks/${encodeURIComponent(id)}/metrics`, q({ after_id, limit: 200 })),
+  trainingLogs: (id: string, after_offset: number, limit = 65536) => request<TrainingLogs>(`/api/v1/training/tasks/${encodeURIComponent(id)}/logs`, q({ after_offset, limit })),
   cancelTraining: (id: string) => request<TrainingTask>(`/api/v1/training/tasks/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   trainingArtifacts: (id: string) => request<TrainingArtifact[]>(`/api/v1/training/tasks/${encodeURIComponent(id)}/artifacts`),
   downloadTraining: (id: string, artifactId: string) => requestFile(`/api/v1/training/tasks/${encodeURIComponent(id)}/artifacts/${encodeURIComponent(artifactId)}/download`),
@@ -57,6 +61,11 @@ export const api = {
   analyzeAudit: (body: AuditInput) => request<AnalysisRecord>('/api/v1/analysis/audits', { method: 'POST', body }),
   analysisRecords: (params: { page: number; page_size: number; kind?: AnalysisKind; scenario_code?: string; status?: string }) => request<Page<AnalysisRecord>>('/api/v1/analysis/records', q(params)),
   analysisRecord: (id: string) => request<AnalysisRecord>(`/api/v1/analysis/records/${encodeURIComponent(id)}`),
+  traceCases: () => request<TraceCase[]>('/api/v1/neural-trace/cases'),
+  createTrace: (body: { case_id: string }) => request<TraceTask>('/api/v1/neural-trace/tasks', { method: 'POST', body }),
+  traceTasks: (limit: number, offset: number) => request<{ items: TraceTask[]; total: number }>('/api/v1/neural-trace/tasks', q({ limit, offset })),
+  traceTask: (id: string) => request<TraceTask>(`/api/v1/neural-trace/tasks/${encodeURIComponent(id)}`),
+  traceResult: (id: string) => request<TraceResult>(`/api/v1/neural-trace/tasks/${encodeURIComponent(id)}/result`),
 }
 
 export function taskId(task: Task): string { return task.task_id || task.id || '' }
