@@ -1,11 +1,13 @@
 import { ApiError, request, requestFile } from './client'
 import type { AnalysisKind, AnalysisOptions, AnalysisRecord, AuditInput, GovernanceInput, GovernanceOptions, GovernanceOverview, OverviewCard, ScenarioInput, TrainingArtifact, TrainingDefaults, TrainingInput, TrainingMetrics, TrainingTask } from '@/types/api'
-import type { BusinessDatabase, BusinessDatabaseInput, BusinessDatabaseTestResult, BusinessUser, Call, Kind, Model, ModelInput, Page, ResultSample, ResultSummary, Scope, Task, TaskCreate, Token } from '@/types/api'
+import type { BusinessUser, Call, Kind, Model, ModelInput, Page, ResultSample, ResultSummary, Scope, Task, TaskCreate, Token } from '@/types/api'
 import type { ScriptTrainingInput, TraceCase, TraceResult, TraceTask, TrainingLogs, TrainingScript } from '@/types/api'
+import type { MultilingualInput, MultilingualResult, MultilingualSample, MultilingualScope, MultilingualTask } from '@/types/api'
 
 const q = (params: Record<string, string | number | undefined>) => ({ params })
 const scopeQuery = (scope: Scope) => ({ ...scope })
 const root = '/api/v1/data-governance'
+const multilingual = '/api/v1/analysis/ethnic-multilingual'
 const taskPath: Record<Kind, string> = { 'governance-value': '/api/v1/tasks', 'governance-anomaly': `${root}/anomaly-tasks`, 'governance-risk': `${root}/risk-tasks` }
 const resultPath: Record<Kind, string> = { 'governance-value': `${root}/value-results`, 'governance-anomaly': `${root}/anomaly-results`, 'governance-risk': `${root}/risk-results` }
 
@@ -25,9 +27,6 @@ export const api = {
   deleteModel: (id: string) => request<void>(`/api/models/${encodeURIComponent(id)}`, { method: 'DELETE', credential: 'both' }),
   bindings: () => request<Partial<Record<Kind, string>>>('/api/v1/admin/governance/models', { credential: 'admin' }),
   setBinding: (kind: Kind, model_id: string) => request(`/api/v1/admin/governance/models/${kind}`, { method: 'PUT', body: { model_id }, credential: 'admin' }),
-  businessDatabase: () => request<BusinessDatabase | null>('/api/v1/admin/governance/business-database', { credential: 'admin' }),
-  setBusinessDatabase: (body: BusinessDatabaseInput) => request<BusinessDatabase>('/api/v1/admin/governance/business-database', { method: 'PUT', body, credential: 'admin' }),
-  testBusinessDatabase: () => request<BusinessDatabaseTestResult>('/api/v1/admin/governance/business-database/test', { method: 'POST', credential: 'admin' }),
   responseTypes: () => request<string[]>('/api/llm/response-types'),
   invoke: (body: { model_id: string; input: string; response_type: string }) => request<{ model_id: string; response_type: string; result: Record<string, unknown> }>('/api/llm/invoke', { method: 'POST', body }),
   calls: (limit: number, offset: number) => request<Call[]>('/api/calls', q({ limit, offset })),
@@ -61,6 +60,12 @@ export const api = {
   analyzeAudit: (body: AuditInput) => request<AnalysisRecord>('/api/v1/analysis/audits', { method: 'POST', body }),
   analysisRecords: (params: { page: number; page_size: number; kind?: AnalysisKind; scenario_code?: string; status?: string }) => request<Page<AnalysisRecord>>('/api/v1/analysis/records', q(params)),
   analysisRecord: (id: string) => request<AnalysisRecord>(`/api/v1/analysis/records/${encodeURIComponent(id)}`),
+  createMultilingual: (body: MultilingualInput) => request<MultilingualTask>(`${multilingual}/tasks`, { method: 'POST', body }),
+  multilingualTask: (id: string) => request<MultilingualTask>(`${multilingual}/tasks/${encodeURIComponent(id)}`),
+  latestMultilingual: (scope: MultilingualScope) => request<MultilingualResult | null>(`${multilingual}/results/latest`, { params: { ...scope } }),
+  multilingualHistory: (scope: MultilingualScope) => request<MultilingualResult[]>(`${multilingual}/results`, { params: { ...scope } }),
+  multilingualResult: (id: string) => request<MultilingualResult>(`${multilingual}/results/${encodeURIComponent(id)}`),
+  multilingualSamples: (id: string, page: number, page_size: number) => request<Page<MultilingualSample>>(`${multilingual}/results/${encodeURIComponent(id)}/samples`, q({ page, page_size })),
   traceCases: () => request<TraceCase[]>('/api/v1/neural-trace/cases'),
   createTrace: (body: { case_id: string }) => request<TraceTask>('/api/v1/neural-trace/tasks', { method: 'POST', body }),
   traceTasks: (limit: number, offset: number) => request<{ items: TraceTask[]; total: number }>('/api/v1/neural-trace/tasks', q({ limit, offset })),

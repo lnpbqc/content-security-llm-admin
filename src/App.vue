@@ -19,6 +19,7 @@ const nav = [
   { path: '/training', label: '模型训练', group: '训练与分析' },
   { path: '/neural-trace', label: '神经因果溯源', group: '训练与分析' },
   { path: '/analysis/scenario', label: '场景分析', group: '训练与分析' },
+  { path: '/analysis/multilingual', label: '多语种语义与风险', group: '训练与分析' },
   { path: '/analysis/governance', label: '模型治理', group: '训练与分析' },
   { path: '/analysis/audit', label: '推理与全链路审计', group: '训练与分析' },
   { path: '/analysis/records', label: '分析记录', group: '训练与分析' },

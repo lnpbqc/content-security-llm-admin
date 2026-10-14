@@ -4,14 +4,25 @@ export type Kind = 'governance-value' | 'governance-anomaly' | 'governance-risk'
 export type TaskStatus = 'pending' | 'running' | 'succeeded' | 'failed'
 export type Task = { id?: string; task_id?: string; name?: string; input?: Scope; status: TaskStatus; created_at: string; result_id: string | null; error_message: string | null; coverage?: number }
 export type TaskCreate = { kind: Kind; name: string; input: Scope }
+export type MultilingualScope = { dataset_id: number; version_id: string; languages: string[]; analysis_mode: 'semantic_weighting' | 'risk_tiering'; scheme_id: 'multilingual-v1' }
+export type MultilingualInput = { model_id: string; input: MultilingualScope }
+export type MultilingualTask = { task_id: string; status: TaskStatus; result_id: string | null; input: MultilingualScope; model_id: string; created_at: string; error_message: string | null }
+export type MultilingualRisk = 'safe' | 'low' | 'medium' | 'high' | 'unknown'
+export type MultilingualEvidence = { quote: string; reason: string }
+export type MultilingualSample = { id: string; dataset_id: number; version_id: string; revision_id: string; text: string; language: string; status: 'assessed' | 'unassessable'; semantic_weights: { safe: number; neutral: number; risk: number } | null; risk_score: number | null; risk_level: MultilingualRisk; evidence: MultilingualEvidence[]; reference_risk_level?: MultilingualRisk; unassessable_reason?: string }
+export type MultilingualResult = {
+  id: string; task_id: string; scope: MultilingualScope; dataset_name: string; model_id: string; finished_at: string; data_source: 'business_dataset'; scheme_name: string; thresholds: { low: number; medium: number; high: number }
+  target_count: number; valid_count: number; unassessable_count: number; failed_count: number; accuracy_correct_count: number; accuracy_test_count: number; data_weight_classification_accuracy: number | null
+  overall_risk_score: number | null; overall_risk_level: MultilingualRisk; semantic_consistency: number | null; semantic_consistency_method: string; high_risk_semantic_weight: number | null; covered_language_count: number; semantic_consistency_delta: number | null; high_risk_semantic_weight_delta: number | null
+  language_distribution: { language: string; sample_count: number; safe_weight: number; neutral_weight: number; risk_weight: number }[]
+  risk_distribution: { level: MultilingualRisk; count: number; percent: number }[]
+  risk_evidence: (MultilingualEvidence & { sample_id: string; language: string; semantic_weight: number; risk_score: number; risk_level: MultilingualRisk })[]
+}
 export type Page<T> = { items: T[]; total: number; page: number; page_size: number; total_pages: number }
 export type Token = { id: string; label: string; created_at: string; expires_at: string; enabled: boolean }
 export type BusinessUser = { id: number; username: string; display_name: string; role: string; enabled: boolean }
 export type Model = { model_id: string; upstream_model_id: string; name: string; description: string | null; base_url: string; created_at: string; updated_at: string }
 export type ModelInput = { upstream_model_id: string; name: string; description?: string | null; base_url: string; api_key: string }
-export type BusinessDatabase = { host: string; port: number; database: string; username: string; password_configured: boolean }
-export type BusinessDatabaseInput = Omit<BusinessDatabase, 'password_configured'> & { password: string }
-export type BusinessDatabaseTestResult = { connected: true; checks: ('connection' | 'query' | 'datasets' | 'dataset_records')[]; elapsed_ms: number; checked_at: string }
 export type Call = { id: string; model_id: string; input: string; output: Record<string, unknown> | null; response_type: string; status: string; error_code: string | null; created_at: string; token_id?: string; token_label?: string }
 export type ResultSummary = { id: string; task_id: string; scope: Scope; dataset_name: string; finished_at: string; [key: string]: unknown }
 export type ResultSample = { id: string; text: string; [key: string]: unknown }

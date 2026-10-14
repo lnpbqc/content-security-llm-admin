@@ -11,6 +11,7 @@ export default createRouter({
     { path: '/calls', component: () => import('@/views/CallsView.vue') },
     { path: '/training', component: () => import('@/views/TrainingView.vue') },
     { path: '/neural-trace', component: () => import('@/views/NeuralTraceView.vue') },
+    { path: '/analysis/multilingual', component: () => import('@/views/MultilingualView.vue') },
     { path: '/analysis/:area(scenario|governance|audit|records)', component: () => import('@/views/AnalysisView.vue') },
     { path: '/governance/:area', component: () => import('@/views/GovernanceWorkspace.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/tokens' },

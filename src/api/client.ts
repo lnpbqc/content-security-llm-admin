@@ -2,7 +2,7 @@ import { session } from '@/stores/session'
 import type { Credential } from '@/types/api'
 
 type Envelope<T> = { code: number; message: string; data: T; trace_id: string; timestamp: string }
-type RequestOptions = { method?: string; body?: unknown; credential?: Credential; v1?: boolean; params?: Record<string, string | number | undefined> }
+type RequestOptions = { method?: string; body?: unknown; credential?: Credential; v1?: boolean; params?: Record<string, string | number | string[] | undefined> }
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public traceId?: string, public data?: unknown) { super(message) }
@@ -50,7 +50,10 @@ export function headersFor(credential: Credential, body: unknown): Headers {
 async function send(path: string, options: RequestOptions): Promise<Response> {
   const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
   const url = new URL(`${base}${path}`, window.location.origin)
-  for (const [key, value] of Object.entries(options.params || {})) if (value !== undefined) url.searchParams.set(key, String(value))
+  for (const [key, value] of Object.entries(options.params || {})) {
+    if (Array.isArray(value)) value.forEach(item => url.searchParams.append(key, item))
+    else if (value !== undefined) url.searchParams.set(key, String(value))
+  }
   let response: Response
   try {
     response = await fetch(url, { method: options.method || 'GET', headers: headersFor(options.credential || 'bearer', options.body), body: options.body === undefined ? undefined : JSON.stringify(options.body) })

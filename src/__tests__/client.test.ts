@@ -10,6 +10,37 @@ const { api } = await import('@/api')
 
 beforeEach(() => { storage.clear(); session.setBearer(''); session.setAdmin(''); vi.unstubAllGlobals(); vi.stubGlobal('sessionStorage', { getItem: (key: string) => storage.get(key) || null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) }); vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } }) })
 
+it('多语种六个接口使用 Bearer，语种查询发送重复键而非逗号字符串', async () => {
+  session.setBearer('owner'); session.setAdmin('setup')
+  const fetchMock = vi.fn().mockResolvedValue({ status: 200, json: async () => ({ code: 0, data: null }) })
+  vi.stubGlobal('fetch', fetchMock)
+  const scope = { dataset_id: 3, version_id: 'v1', languages: ['zh', 'en'], analysis_mode: 'risk_tiering', scheme_id: 'multilingual-v1' } as const
+  const input = { ...scope, languages: [...scope.languages] }
+  await api.createMultilingual({ model_id: 'm1', input })
+  await api.multilingualTask('task/1')
+  await api.latestMultilingual(input)
+  await api.multilingualHistory(input)
+  await api.multilingualResult('result/1')
+  await api.multilingualSamples('result/1', 2, 20)
+  const calls = fetchMock.mock.calls as [URL, RequestInit][]
+  expect(calls.map(([url]) => url.pathname)).toEqual([
+    '/api/v1/analysis/ethnic-multilingual/tasks', '/api/v1/analysis/ethnic-multilingual/tasks/task%2F1',
+    '/api/v1/analysis/ethnic-multilingual/results/latest', '/api/v1/analysis/ethnic-multilingual/results',
+    '/api/v1/analysis/ethnic-multilingual/results/result%2F1', '/api/v1/analysis/ethnic-multilingual/results/result%2F1/samples',
+  ])
+  expect(calls[0]![1].method).toBe('POST')
+  expect(JSON.parse(String(calls[0]![1].body))).toEqual({ model_id: 'm1', input })
+  for (const index of [2, 3]) {
+    expect(calls[index]![0].searchParams.getAll('languages')).toEqual(['zh', 'en'])
+    expect(calls[index]![0].searchParams.has('model_id')).toBe(false)
+  }
+  expect(calls[5]![0].searchParams.get('page')).toBe('2')
+  for (const [, options] of calls) {
+    expect((options.headers as Headers).get('Authorization')).toBe('Bearer owner')
+    expect((options.headers as Headers).has('X-Setup-Secret')).toBe(false)
+  }
+})
+
 describe('两种响应格式', () => {
   it('直接返回旧接口对象并处理 204 空响应', () => { expect(unwrap(200, { model_id: 'm1' }, false)).toEqual({ model_id: 'm1' }); expect(unwrap(204, undefined, false)).toBeUndefined() })
   it('只取 v1 data，失败保留 trace_id', () => {
@@ -192,16 +223,11 @@ it('通用调用仍使用旧契约，长输入不会被新 v1 限制影响', asy
   expect(JSON.parse(String(options.body)).input).toBe(input)
 })
 
-it('风险导出只发送筛选条件，不发送分页；连接测试仅使用管理员密钥', async () => {
+it('风险导出只发送筛选条件，不发送分页', async () => {
   session.setBearer('owner'); session.setAdmin('setup')
   const fetchMock = vi.fn().mockResolvedValue({ status: 200, json: async () => ({ code: 0, data: [] }) })
   vi.stubGlobal('fetch', fetchMock)
   await api.exportRisk('r1', { keyword: '文本', level: 'HIGH', status: '待复核' })
-  await api.testBusinessDatabase()
   const calls = fetchMock.mock.calls as [URL, RequestInit][]
   expect(JSON.parse(String(calls[0]![1].body))).toEqual({ keyword: '文本', level: 'HIGH', status: '待复核' })
-  expect(calls[1]![0].pathname).toBe('/api/v1/admin/governance/business-database/test')
-  expect(calls[1]![1].body).toBeUndefined()
-  expect((calls[1]![1].headers as Headers).get('X-Setup-Secret')).toBe('setup')
-  expect((calls[1]![1].headers as Headers).has('Authorization')).toBe(false)
 })
